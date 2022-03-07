@@ -1,0 +1,58 @@
+			GOOGLE DOCS CLONE BY PAPA REACT
+
+Source: https://www.youtube.com/watch?v=1ZdFJ0701QI
+
+IMPORTANTE: NextJS sólo sirve la data necesaria para servir la página
+actual mientras que React sirve todo el compilado siempre.Obviamente esto lo
+hace más eficiente. 
+Dado que vamos a usar Material lo vamos a hacer de esta forma:
+yarn add @material-tailwind/react -E
+
+NOTA: la libreria no tiene soporte para TS.También vamos a necesitar la CDN
+para iconos,la vamos a usar en _app.js con un Head de Next(elegante):
+
+function MyApp({ Component, pageProps }: AppProps) {
+  return (
+    <>
+      <Head>
+        {/* Material Icons Link */}
+        <link
+          href="https://fonts.googleapis.com/icon?family=Material+Icons"
+          rel="stylesheet"
+        />
+      </Head>
+      <Component {...pageProps} />
+    </>
+  )
+}
+ 
+Fijate que bonito queda el input con bg-transparent y sin outline:
+     <div className="flex flex-grow items-center px-5 py-2 space-x-2
+bg-gray-100">
+        <Icon name="search" size="3xl" color="darkgray" />
+        <input type="text" placeholder="Search" className="bg-transparent
+outline-none" />
+      </div>
+
+IMPORTANTE: fijate como está distribuida la UI en la pantalla,realmente es
+mala idea aprovechar el 100% del width,pues es mucha medida y puede saturar al
+usuario.
+Asi que lo mejor es hacer como con el twitter-clone,y dar un ancho máximo
+al UI(por ejemplo 1500px)
+NOTA: recuerda containerizar todo.Desde luego es la clave de un buen diseño(y
+también usar etiquetas semánticas)
+Fijate de nuevo lo poderoso que es NextJS junto con NextAuth.De nuevo recalca
+que al usar React se le entrega todo el bundle mientras que con Next primero
+se accede al NextJS Server y además sólo se sirve la página actual(de ahi que
+pueda modificar con <Head> cada página individualmente)
+IMPORTANTE:recuerda que no hace falta pasar la session en el index.js,solo es
+necesario llamar a getSession y ya se popula todo:
+
+export const getServerSideProps = async(ctx:NextPageContext) => {
+  const session = await getSession(ctx);
+  return {
+    props:{
+      session
+    }
+  }
+}

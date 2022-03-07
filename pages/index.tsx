@@ -1,86 +1,147 @@
-import type { NextPage } from 'next'
+import type { NextPage, NextPageContext } from 'next'
 import Head from 'next/head'
+import Header from '../components/Header'
+import Button from '@material-tailwind/react/Button'
+import Icon from '@material-tailwind/react/Icon'
 import Image from 'next/image'
+import { getSession, useSession } from 'next-auth/client'
+import Login from '../components/Login'
+import Modal from '@material-tailwind/react/Modal'
+import ModalBody from '@material-tailwind/react/ModalBody'
+import ModalFooter from '@material-tailwind/react/ModalFooter'
+import { useEffect, useState } from 'react'
+import { db } from '../firebase'
+import firebase from 'firebase'
+import { useCollectionOnce } from 'react-firebase-hooks/firestore'
+import DocumentRow from '../components/DocumentRow'
 
 const Home: NextPage = () => {
+  /* me dirá si la session esta empty o undefined o no.Si no lo esta tengo acceso al avatar,image,name,... */
+  const [session] = useSession()
+  /* fijate que éste es el lugar idóneo para redirigir,no quiero que procese nada más,si no hay session debo salir de aqui */
+  if (!session) return <Login />
+
+  /* si si hay sesión ya empiezo con la lógica */
+  const [input, setInput] = useState('')
+  const [showModal, setShowModal] = useState(false)
+
+
+  let [snapshot] = useCollectionOnce(
+    db
+      .collection('UserDocs')
+      .doc(session.user?.email!)
+      .collection('docs')
+      .orderBy('timestamp', 'desc')
+  )
+  
+
+  const createDocument = () => {
+    if (!input.trim()) return
+    /* recuerda que en NoSQL la estructura es collection-document-collection-document */
+    db.collection('UserDocs').doc(session.user?.email!).collection('docs').add({
+      fileName: input,
+      /* siempre usar la timestamp del server para universalizar */
+      /* fijate que engorroso era en la v8 */
+      timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+    }).then((data) => {
+      window.location.reload()
+      setInput('')
+      setShowModal(false)
+    })
+  }
+
+  /* fijate como define JSX y luego simplemente lo llama,sin necesidad de que lo retorne una función */
+  const modal = (
+    <Modal size="sm" active={showModal} toggler={() => setShowModal(false)}>
+      <ModalBody>
+        <input
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          type="text"
+          className="w-full outline-none"
+          placeholder="Enter name of document"
+          onKeyDown={(e) => e.key === 'Enter' && createDocument()}
+        />
+      </ModalBody>
+      <ModalFooter>
+        <Button
+          color="blue"
+          buttonType="link"
+          onClick={() => setShowModal(false)}
+          ripple="dark"
+        >
+          Cancel
+        </Button>
+        <Button color="blue" onClick={createDocument} ripple="light">
+          Create
+        </Button>
+      </ModalFooter>
+    </Modal>
+  )
+
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center py-2">
+    <div className="">
       <Head>
-        <title>Create Next App</title>
+        <title>Google Docs Clone</title>
         <link rel="icon" href="/favicon.ico" />
       </Head>
+      <Header />
+      {modal}
+      <section className="bg-[#f8f9fa] px-10 pb-10">
+        <div className="mx-auto max-w-3xl ">
+          <div className="flex items-center justify-between py-6">
+            <h2 className="text-lg text-gray-700">Start a new document</h2>
+            <Button
+              color="gray"
+              buttonType="outline"
+              rounded={true}
+              iconOnly={true}
+              ripple="dark"
+              className="border-0"
+            >
+              <Icon name="more_vert" size="3xl" />
+            </Button>
+          </div>
 
-      <main className="flex w-full flex-1 flex-col items-center justify-center px-20 text-center">
-        <h1 className="text-6xl font-bold">
-          Welcome to{' '}
-          <a className="text-blue-600" href="https://nextjs.org">
-            Next.js!
-          </a>
-        </h1>
-
-        <p className="mt-3 text-2xl">
-          Get started by editing{' '}
-          <code className="rounded-md bg-gray-100 p-3 font-mono text-lg">
-            pages/index.tsx
-          </code>
-        </p>
-
-        <div className="mt-6 flex max-w-4xl flex-wrap items-center justify-around sm:w-full">
-          <a
-            href="https://nextjs.org/docs"
-            className="mt-6 w-96 rounded-xl border p-6 text-left hover:text-blue-600 focus:text-blue-600"
+          <div
+            className="relative h-52 w-40 cursor-pointer border-2 hover:border-blue-700"
+            onClick={() => setShowModal(true)}
           >
-            <h3 className="text-2xl font-bold">Documentation &rarr;</h3>
-            <p className="mt-4 text-xl">
-              Find in-depth information about Next.js features and API.
+            <Image src="/images/GoogleBlank.png" layout="fill" />
+            <p className="ml-2 mt-2 text-sm font-semibold text-gray-700">
+              Blank
             </p>
-          </a>
-
-          <a
-            href="https://nextjs.org/learn"
-            className="mt-6 w-96 rounded-xl border p-6 text-left hover:text-blue-600 focus:text-blue-600"
-          >
-            <h3 className="text-2xl font-bold">Learn &rarr;</h3>
-            <p className="mt-4 text-xl">
-              Learn about Next.js in an interactive course with quizzes!
-            </p>
-          </a>
-
-          <a
-            href="https://github.com/vercel/next.js/tree/canary/examples"
-            className="mt-6 w-96 rounded-xl border p-6 text-left hover:text-blue-600 focus:text-blue-600"
-          >
-            <h3 className="text-2xl font-bold">Examples &rarr;</h3>
-            <p className="mt-4 text-xl">
-              Discover and deploy boilerplate example Next.js projects.
-            </p>
-          </a>
-
-          <a
-            href="https://vercel.com/import?filter=next.js&utm_source=create-next-app&utm_medium=default-template&utm_campaign=create-next-app"
-            className="mt-6 w-96 rounded-xl border p-6 text-left hover:text-blue-600 focus:text-blue-600"
-          >
-            <h3 className="text-2xl font-bold">Deploy &rarr;</h3>
-            <p className="mt-4 text-xl">
-              Instantly deploy your Next.js site to a public URL with Vercel.
-            </p>
-          </a>
+          </div>
         </div>
-      </main>
-
-      <footer className="flex h-24 w-full items-center justify-center border-t">
-        <a
-          className="flex items-center justify-center gap-2"
-          href="https://vercel.com?utm_source=create-next-app&utm_medium=default-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Powered by{' '}
-          <Image src="/vercel.svg" alt="Vercel Logo" width={72} height={16} />
-        </a>
-      </footer>
+      </section>
+      <section className="bg-white px-10 md:px-0">
+        <div className="mx-auto max-w-3xl py-8 text-sm text-gray-700 ">
+          <div className="flex items-center justify-between pb-5">
+            <h2 className="flex-grow font-medium">My Documents</h2>
+            <p className="mr-12">Date created</p>
+            <Icon name="folder" size="3xl" color="gray" />
+          </div>
+          {snapshot?.docs.map((doc) => (
+            <DocumentRow
+              key={doc.id}
+              id={doc.id}
+              fileName={doc.data().fileName}
+              date={doc.data().timestamp}
+            />
+          ))}
+        </div>
+      </section>
     </div>
   )
 }
 
 export default Home
+
+export const getServerSideProps = async (ctx: NextPageContext) => {
+  const session = await getSession(ctx)
+  return {
+    props: {
+      session,
+    },
+  }
+}

@@ -1,0 +1,322 @@
+			GOOGLE DOCS CLONE BY PAPA REACT
+
+Source: https://www.youtube.com/watch?v=1ZdFJ0701QI
+
+IMPORTANTE: NextJS sólo sirve la data necesaria para servir la página
+actual mientras que React sirve todo el compilado siempre.Obviamente esto lo
+hace más eficiente. 
+Dado que vamos a usar Material lo vamos a hacer de esta forma:
+yarn add @material-tailwind/react -E
+
+NOTA: la libreria no tiene soporte para TS.También vamos a necesitar la CDN
+para iconos,la vamos a usar en _app.js con un Head de Next(elegante):
+
+function MyApp({ Component, pageProps }: AppProps) {
+  return (
+    <>
+      <Head>
+        {/* Material Icons Link */}
+        <link
+          href="https://fonts.googleapis.com/icon?family=Material+Icons"
+          rel="stylesheet"
+        />
+      </Head>
+      <Component {...pageProps} />
+    </>
+  )
+}
+ 
+Fijate que bonito queda el input con bg-transparent y sin outline:
+     <div className="flex flex-grow items-center px-5 py-2 space-x-2
+bg-gray-100">
+        <Icon name="search" size="3xl" color="darkgray" />
+        <input type="text" placeholder="Search" className="bg-transparent
+outline-none" />
+      </div>
+
+IMPORTANTE: fijate como está distribuida la UI en la pantalla,realmente es
+mala idea aprovechar el 100% del width,pues es mucha medida y puede saturar al
+usuario.
+Asi que lo mejor es hacer como con el twitter-clone,y dar un ancho máximo
+al UI(por ejemplo 1500px)
+NOTA: recuerda containerizar todo.Desde luego es la clave de un buen diseño(y
+también usar etiquetas semánticas)
+Fijate de nuevo lo poderoso que es NextJS junto con NextAuth.De nuevo recalca
+que al usar React se le entrega todo el bundle mientras que con Next primero
+se accede al NextJS Server y además sólo se sirve la página actual(de ahi que
+pueda modificar con <Head> cada página individualmente)
+IMPORTANTE:recuerda que no hace falta pasar la session en el index.js,solo es
+necesario llamar a getSession y ya se popula todo:
+
+export const getServerSideProps = async(ctx:NextPageContext) => {
+  const session = await getSession(ctx);
+  return {
+    props:{
+      session
+    }
+  }
+}
+Esto también debe ir acompañado de la llamada al Provider:
+
+function MyApp({ Component, pageProps }: AppProps)
+{
+  return (
+    <>
+      <Provider session={pageProps.session}>
+        <Component {...pageProps} />
+      </Provider>
+    </>
+
+IMPORTANTE: en Firestore(y en NoSQL) la estructura que debo seguir es
+collection-document,collection-document.Asi pues hay que crear una coleccion
+con un documento que tendra una coleccion con documentos.Fácil:
+
+db.collection('UserDocs').doc(session.user.email).collection('docs').add({
+   fileName: input,
+      /* siempre usar la timestamp del server para universalizar */
+      /* fijate que engorroso era en la v8 */
+      timestamp: firebase.firestore.FieldValue.serverTimestamp()
+Fijate en la importancia de poner marcas de tiempo,asi podré recuperar los
+archivos de cada usuario del más reciente al más antigüo,etc...
+
+Vamos a usar react-firebase-hooks(la v3 vale para firebase v8,la 4 y 5
+necesitan firebase v9)
+Esta libreria tiene hooks con los que suscribirme a la Auth,a Firestore,a
+Storage...Genial
+
+Firestore Hooks: React Firebase Hooks provides convenience listeners for
+Collections and Documents stored with Cloud Firestore. The hooks wrap around
+the firebase.firestore.collection().onSnapshot() and
+firebase.firestore().doc().onSnapshot() methods.
+
+In addition to returning the snapshot value, the hooks provide an error and
+loading property to give a complete lifecycle for loading and listening to
+Cloud Firestore.
+
+Hay dos variantes de cada hook:
+useX which subscribes to the underlying Collection or Document and listens for
+changes
+useXOnce which reads the current value of the Collection or Document
+
+Estos son todos ellos:
+useCollection
+useCollectionOnce
+useCollectionData
+useCollectionDataOnce
+useDocument
+useDocumentOnce
+useDocumentData
+useDocumentDataOnce
+
+Ejemplo de useCollection
+const [snapshot, loading, error] = useCollection(query?, options?);
+
+Puedo ver que es facilísimo ordenarlos y suscribirme.Esto es exactamente igual
+que las Subscription,pero con gestion de loading y errores:
+
+
+  const [snapshot, loading, error] = useCollectionOnce(
+    db
+      .collection('UserDocs')
+      .doc(session.user.email)
+      .collection('docs')
+      .orderBy('timestamp', 'desc')
+  )
+Gran hallazgo
+
+		IMPLEMENTING RICH TEXT EDITOR
+
+3h05m: IMPORTANTE,no confundir la pagina para NextAuth que es [...nextauth].js con una simple página que toma un wildcard porque es una ruta dinámica,y será [id].js(sin los tres puntos).
+Asi pues,creo la página /pages/doc/[id].tsx que será un documento
+IMPORTANTE,recuerda que react-firebase-hooks no es lo mismo que Firebase Functions.Fijate que el clone de Discord usa Firebase-hooks,haztelo.
+
+Bien,con todo esto puedo acceder al documento de esta forma:
+  const [snapshot, loadingSnapshot] = useDocumentOnce(
+      db
+        .collection('UserDocs')
+        .doc(session.user?.email!)
+        .collection('docs')
+        .doc(id as string)
+      )
+Mucho nivel por aqui, me estoy asegurando de leerlo una única vez??.
+NOTA:recuerda que esto me trae una snapshot,asi que tengo que aplicarle data():
+<h2 className="">{snapshot?.data()?.fileName}</h2>
+
+NOTA: NextAuth usa OAuth por detrás.Con OAuth puedo acceder a los providers típicos de autenticación(Google,Facebook,..)
+Fijate que debo crear un archivo en /pages/api/auth/[..nextauth].js para que cualquier peticion,por ejemplo a /api/auth/signin o /api/auth/callback sea procesada por ese archivo.Obviamente todos los providers estarán configurados para que apunten a estas rutas,procesando el archivo cualquier intento de login,logout,signin...
+
+Recuerda que cuando use un Provider tendré que registrar una aplicación con ellos,ya sea Firebase,Google,Spotify,GitHub,Gitlab,.. siempre tendré que crear una app para obtener el client_id y client_secret.
+Recuerda que la callback URl será api/auth/callback/:provider.
+IMPORTANTE:las rutas en Next son /api/auth/signin | signout por los motivos ya mencionados(puedo visitarlas harcodeandolas).
+
+TIP ULTRAPRO: para meter código asincrono en el useEffect puedo usar una funcion nombrada o usar una funcion autoinvocada.
+
+NOTA:NextAuth guarda en cookies el token,la callback url y el csrf token(guarda varias cosas en las cookies)
+
+
+useEffect( () => {
+  (async () => await getSession)();
+
+},[]);<- sin embargo no voy a llamar solo a await getSession:
+
+const [user,setUser] = useState(null);
+
+useEffect( () => {
+ (async() => {
+  const session = await getSession();
+  setUser(session.user) <- ya tengo al user en user
+ })();
+},[]);
+
+* IMPORTANTE: esto obtendría los datos desde el frontend,pero yo ya hacer esto en el backend(memoriza la forma de ejecutar código asincrono con funciones autoinvocadas).( async () => {})();
+
+TIP: solo puedo usar useSession en el frontend,pues los hooks son parte de React,y no tienen nada que ver con el backend.Además,usar useSession implica tener que englobar en el HOC <SessionProvider> mi app.
+Recuerda también que puedo acceder al status.
+const {data,status} = useSession()<- donde status puede ser 'loading','authenticated' o 'unauthenticated'.
+
+NOTA: si tengo acceso ya desde el backend a la session,puedo incluso determinar en el backend que redireccione si no hay session:
+
+export const getServerSideProps= async (ctx) => {
+  const session = await getSession(ctx);
+  if(!session) return {
+   redirect:{
+     destination:'/login',
+     permanent: false
+     }
+   }
+   return {
+     props:{
+      session
+      }
+    }
+Fijate que en ambos hago un return{redirect..} o return {props..} estableciendo el retorno.Esto permite pleno control del frontend,no permitiendo visualizarlo en ningun momento si no hay session.
+		
+		AUTENTICAR ACCESO A LA REST API DE NEXT
+
+De igual forma que en el front puedo llamar a getSession en cualquier punto de /pages/api/*(es decir en toda la API puedo saber si el usuario está autenticado:
+
+import { getSession} from 'next-auth/react';
+
+export default async function handler(req,res) {
+  const session = await getSession({req}); 
+
+  if(!session) return res.status(403).send('you dont have access);
+  return res.status(200).send('you can access')
+}
+Fijate que hay que pasarle el objeto request para que pueda acceder a validar la sesion,y embebido en un objeto.Sea como fuere,llamar a getSession siempre va a necesitar un argumento,o bien el context o la request.
+
+				CONECTANDO A UNA DB 
+
+Next me permite guardar los datos en una DB,es decir,que no sólo se guardarán en una cookie como ya he visto,sino que los puedo guardar en una DB que yo elija.De esta forma puedo añadir más campos(fijate que importante es esto).Añadir campos suele ser algo fundamental.
+Podria cambiar el avatar,el nombre,añadir roles,...Amazing
+NextAuth soporta mongodb,typeorm,sequelize,neo4j,firebase,dynamodb, asi que tendré que consultar la documentación ya que usa varios ORMs y es posible que no pueda usar SQL puro.
+
+Veamos un ejemplo con mongodb:
+PASO UNO: dependencias
+>npm i next-auth @next-auth/mongodb-adapter mongodb <- el adapter y la db
+PASO DOS: crear en lib/mongodb.js la conexión:
+import { MongoClient} from 'mongodb'
+
+const uri = process.env.MONGODB_URI;
+const options= xxx;
+export 
+Ver resto del código en la documentación(al final exporto el objeto clientPromise).
+
+PASO TRES:añadir la propiedad 'adapter' en el [.. . nextauth].js:
+import { MongoDBAdapter } from "@next-auth/mongodb-adapter"
+import { clientPromise } from 'lib/mongodb' <- ojo que usaron alias en el jsconfig.json para no usar ../../../lib/mongodb ,usan relativas a punto(.) o la raiz del proyecto.
+
+export default NextAuth(
+  adapter: MongoDBAdapter(clientPromise),
+
+Como puedo observar es realmente sencillo
+Por último recordar que NextAuth permite autenticar con una REST API ya creada(es el provider Credentials):
+import CredentialsProvider from "next-auth/providers/credentials";
+
+providers:[
+  CredentialsProvider({
+    name: "credentials" <- name to display in form
+    credentials:{
+      username: {label:"Username",type:"text",placeholder:""},
+      password:{ same }
+      },
+      async authorize(credentials,req){
+      const user = {id:1,name:"xxxx",email:""
+     if(user){ logic } else { logic}
+      }
+  })
+Realmente es mirar la documentación,pero permite combinar un custom Login con los Providers.
+Bien,ahora si,es hora de ver como se implementa el Text Editor.
+
+			IMPLEMENTING TEXT EDITOR
+
+Tengo el repo aqui: https://github.com/jpuri/react-draft-wysiwyg
+Se instala como un simple paquete npm(fijate que usará la libreria draftJS y por ello tengo que instalarla):
+$ npm install --save react-draft-wysiwyg draft-js
+
+PRO TIP: cuando esté interactuando con librerias con sus propias clases puede pasarme como ahora que no puedo centrar algo que declaré en flex pr las clases de la libreria que trae.Puedo sobreescribirlas con ! delante:
+  <Editor toolbarClassName="flex sticky top-0 !justify-center mx-auto" />
+
+Realmente fue bastante sencillo usar este editor,claro que faltarían muchas cosas por gestionar como descargar el archivo,etc...Vista final:
+
+import dynamic from 'next/dynamic'
+import { useEffect, useState } from 'react'
+import { convertFromRaw, convertToRaw, EditorState } from 'draft-js'
+import { useSession } from 'next-auth/client'
+import { useRouter } from 'next/router'
+import { useDocumentOnce } from 'react-firebase-hooks/firestore'
+import { db } from '../firebase'
+
+ const Editor = dynamic(
+    () => import('react-draft-wysiwyg').then((module) => module.Editor),
+      { ssr: false }
+        )
+import 'react-draft-wysiwyg/dist/react-draft-wysiwyg.css'
+
+
+const TextEditor = () => {
+  const [session] = useSession()
+    /* aun en js voy a necesitar iniciar el estado del editor con draft js ya que necesita una determinada estructura */
+      const [editorState, setEditorState] = useState(EditorState.createEmpty())
+      const router = useRouter()
+      const { id } = router.query
+
+    /* de igual manera que se trae el event en un SyntethicEvent aqui me traeré el argumento editorState en cada cambio implicitamente.Es un objeto muy grande con muchas propiedades y eventos útiles,basicamente es el estado del editor. */
+
+      const onEditorStateChange = (editorState) => {
+         setEditorState(editorState)
+
+          db.collection('UserDocs')
+            .doc(session?.user?.email)
+            .collection('docs')
+            .doc(id)
+            .set( {
+               /* convertToRaw convierte a JSON Storable format */
+ 	       editorState: convertToRaw(editorState.getCurrentContent()), },
+               { merge: true }) }
+
+  const [snapshot] = useDocumentOnce(
+      db.collection('UserDocs').doc(session?.user.email).collection('docs').doc(id)
+        )
+
+  useEffect(() => {
+      if (snapshot?.data()?.editorState) {
+           setEditorState(EditorState.createWithContent(convertFromRaw(snapshot?.data()?.editorState)))
+        }
+   }, [snapshot])
+
+  return (
+     <>
+      <div className="min-h-screen bg-[#f8f9fa] pb-16">
+             <Editor
+                 toolbarClassName="flex sticky top-0 !justify-center mx-auto"
+                 editorClassName="mt-5 bg-white shadow-lg max-w-4xl mx-auto mb-12 border p-10" //clases para estilos
+                 editorState={editorState} //getter para el estado
+                 onEditorStateChange={onEditorStateChange} //eventHandler
+              />
+             </div>
+    </>
+   )
+  }
+ export default TextEditor
+ Fijate que es muy recto el camino.
