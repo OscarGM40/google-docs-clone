@@ -1,7 +1,7 @@
 			GOOGLE DOCS CLONE BY PAPA REACT
 
 Source: https://www.youtube.com/watch?v=1ZdFJ0701QI
-
+NOTA:usé las credentials de disney-clone y NEXTAUTH_SECRET="a3ViZXJuZXRlcwo="
 IMPORTANTE: NextJS sólo sirve la data necesaria para servir la página
 actual mientras que React sirve todo el compilado siempre.Obviamente esto lo
 hace más eficiente. 
